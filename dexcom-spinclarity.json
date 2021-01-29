@@ -1,0 +1,400 @@
+{
+    "appConfig": {},
+    "expectedArtifacts": [],
+    "keepWaitingPipelines": false,
+    "lastModifiedBy": "ADMIN",
+    "limitConcurrent": true,
+    "parameterConfig": [
+      {
+        "default": "test",
+        "description": "",
+        "hasOptions": true,
+        "label": "Target Environment",
+        "name": "environment",
+        "options": [
+          {
+            "value": "test"
+          },
+          {
+            "value": "stage"
+          },
+          {
+            "value": "prod"
+          }
+        ],
+        "pinned": true,
+        "required": true
+      }
+    ],
+    "spelEvaluator": "v4",
+    "stages": [
+      {
+        "expectedArtifacts": [
+          {
+            "defaultArtifact": {
+              "customKind": true,
+              "id": "a58805c0-7eb7-43da-b201-8750cdf91bc0"
+            },
+            "displayName": "${parameters.environment}-deploy.yaml",
+            "id": "ff3261d7-ad2c-49a9-972a-1440631f009b",
+            "matchArtifact": {
+              "artifactAccount": "custom-artifact",
+              "id": "2faa059f-2987-4e80-b6bc-a6d498dcece9",
+              "type": "embedded/base64"
+            },
+            "useDefaultArtifact": false,
+            "usePriorArtifact": false
+          }
+        ],
+        "inputArtifact": {
+          "account": "OpsMxGithub",
+          "artifact": {
+            "artifactAccount": "OpsMxGithub",
+            "customKind": true,
+            "id": "5fbf520a-4547-4d25-aae1-1035ba867e9b",
+            "metadata": {
+              "subPath": "POC/spin-clarity"
+            },
+            "reference": "https://github.com/OpsMx/dexcom.git",
+            "type": "git/repo",
+            "version": "main"
+          }
+        },
+        "kustomizeFilePath": "POC/spin-clarity/${parameters.environment}/kustomization.yaml",
+        "name": "Bake (Manifest)",
+        "overrides": {},
+        "refId": "2",
+        "requisiteStageRefIds": [
+          "6"
+        ],
+        "templateRenderer": "KUSTOMIZE",
+        "type": "bakeManifest"
+      },
+      {
+        "customHeaders": {},
+        "expectedArtifacts": [],
+        "failFastStatusCodes": [],
+        "method": "PUT",
+        "name": "Webhook",
+        "payload": {
+          "artifactAccount": "OpsMxArtifactory",
+          "reference": "https://opsmx2.jfrog.io/artifactory/api/search/versions?g=bom&a=clarity&repos=Dexcom",
+          "type": "http/file"
+        },
+        "refId": "3",
+        "requisiteStageRefIds": [],
+        "stageEnabled": {
+          "expression": "trigger['type'] == \"manual\"",
+          "type": "expression"
+        },
+        "statusUrlResolution": "locationHeader",
+        "type": "webhook",
+        "url": "http://spin-clouddriver-ro:7002/artifacts/fetch",
+        "waitForCompletion": false
+      },
+      {
+        "expectedArtifacts": [
+          {
+            "defaultArtifact": {
+              "customKind": true,
+              "id": "439b8105-74a2-4154-ab57-9dfd13c30721"
+            },
+            "displayName": "moody-monkey-36",
+            "id": "df75cb2f-ba40-413a-ae1b-ea64e5cc7335",
+            "matchArtifact": {
+              "artifactAccount": "embedded-artifact",
+              "customKind": false,
+              "id": "3080146e-5395-42cd-850a-c2ae696c4970",
+              "type": "embedded/base64"
+            },
+            "useDefaultArtifact": false,
+            "usePriorArtifact": false
+          }
+        ],
+        "inputArtifact": {
+          "account": "OpsMxGithub",
+          "artifact": {
+            "artifactAccount": "OpsMxGithub",
+            "customKind": true,
+            "id": "5f3b5cd4-c4d3-4164-b552-5ad1f5c9db02",
+            "metadata": {
+              "subPath": "POC/spin-clarity"
+            },
+            "reference": "https://github.com/OpsMx/dexcom.git",
+            "type": "git/repo",
+            "version": "main"
+          }
+        },
+        "kustomizeFilePath": "POC/spin-clarity/${parameters['environment']}/kustomization.yaml",
+        "name": "Apply Image Overlay",
+        "overrides": {},
+        "refId": "6",
+        "requisiteStageRefIds": [
+          "10"
+        ],
+        "templateRenderer": "KUSTOMIZE",
+        "type": "bakeManifest"
+      },
+      {
+        "account": "default",
+        "alias": "runJob",
+        "application": "spinclarity",
+        "cloudProvider": "kubernetes",
+        "comments": "",
+        "consumeArtifactSource": "propertyFile",
+        "credentials": "default",
+        "manifest": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "name": "template-generator",
+            "namespace": "oes-spin"
+          },
+          "spec": {
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "command": [
+                      "bash",
+                      "-c",
+                      "apt update && apt install -y jq git curl\n\ncat /tmp/deploy-bom/deploy-bom.json\n\n\ngit clone --branch main --depth 1 \\\nhttps://${GIT_USER}:${GIT_PASS}@github.com/OpsMx/dexcom.git\n\n\ncd dexcom\nls -al\n"
+                    ],
+                    "env": [
+                      {
+                        "name": "GIT_USER",
+                        "valueFrom": {
+                          "secretKeyRef": {
+                            "key": "username",
+                            "name": "git-account"
+                          }
+                        }
+                      },
+                      {
+                        "name": "GIT_PASS",
+                        "valueFrom": {
+                          "secretKeyRef": {
+                            "key": "password",
+                            "name": "git-account"
+                          }
+                        }
+                      }
+                    ],
+                    "image": "ubuntu",
+                    "name": "template-generator",
+                    "volumeMounts": [
+                      {
+                        "mountPath": "/app/",
+                        "name": "work-dir"
+                      },
+                      {
+                        "mountPath": "/tmp/git-account",
+                        "name": "git-credentials",
+                        "readOnly": true
+                      },
+                      {
+                        "mountPath": "/tmp/deploy-bom",
+                        "name": "deploy-bom-map"
+                      }
+                    ],
+                    "workingDir": "/app"
+                  }
+                ],
+                "restartPolicy": "Never",
+                "volumes": [
+                  {
+                    "emptyDir": {},
+                    "name": "work-dir"
+                  },
+                  {
+                    "name": "git-credentials",
+                    "secret": {
+                      "secretName": "git-account"
+                    }
+                  },
+                  {
+                    "configMap": {
+                      "name": "bom-${parameters.environment}-configmap"
+                    },
+                    "name": "deploy-bom-map"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "Run Job (Manifest)",
+        "propertyFile": "template-generator",
+        "refId": "10",
+        "requiredArtifactIds": [],
+        "requiredArtifacts": [],
+        "requisiteStageRefIds": [
+          "11"
+        ],
+        "source": "text",
+        "type": "runJobManifest"
+      },
+      {
+        "account": "default",
+        "cloudProvider": "kubernetes",
+        "expectedArtifacts": [],
+        "manifestArtifact": {
+          "artifactAccount": "OpsMxArtifactory",
+          "id": "16dbdbaa-37c9-4fc8-a8d3-d5b242024d06",
+          "reference": "https://opsmx2.jfrog.io/artifactory/Dexcom/bom/clarity/clarity-${#judgment(\"Select Version\")}.yaml",
+          "type": "http/file"
+        },
+        "moniker": {
+          "app": "spinclarity"
+        },
+        "name": "Deploy (Manifest)",
+        "refId": "11",
+        "requiredArtifactIds": [],
+        "requiredArtifacts": [],
+        "requisiteStageRefIds": [
+          "14"
+        ],
+        "skipExpressionEvaluation": false,
+        "source": "artifact",
+        "trafficManagement": {
+          "enabled": false,
+          "options": {
+            "enableTraffic": false,
+            "services": []
+          }
+        },
+        "type": "deployManifest"
+      },
+      {
+        "account": "default",
+        "cloudProvider": "kubernetes",
+        "manifests": [
+          {
+            "apiVersion": "v1",
+            "data": {
+              "versions.json": "${#stage(\"Webhook\")[\"context\"][\"webhook\"][\"body\"]}"
+            },
+            "kind": "ConfigMap",
+            "metadata": {
+              "name": "pipeline-configmap",
+              "namespace": "oes-spin"
+            }
+          }
+        ],
+        "moniker": {
+          "app": "spinclarity"
+        },
+        "name": "Deploy (Manifest)",
+        "refId": "12",
+        "requisiteStageRefIds": [
+          "3"
+        ],
+        "skipExpressionEvaluation": false,
+        "source": "text",
+        "trafficManagement": {
+          "enabled": false,
+          "options": {
+            "enableTraffic": false,
+            "services": []
+          }
+        },
+        "type": "deployManifest"
+      },
+      {
+        "account": "default",
+        "alias": "runJob",
+        "application": "spinclarity",
+        "cloudProvider": "kubernetes",
+        "consumeArtifact": {
+          "artifactAccount": "custom-artifact",
+          "customKind": true,
+          "id": "243fb680-3649-4f19-bdca-1a9491380932",
+          "type": "custom/object"
+        },
+        "consumeArtifactAccount": "custom-artifact",
+        "consumeArtifactId": "243fb680-3649-4f19-bdca-1a9491380932",
+        "consumeArtifactSource": "propertyFile",
+        "credentials": "default",
+        "manifest": {
+          "apiVersion": "batch/v1",
+          "kind": "Job",
+          "metadata": {
+            "name": "genjson",
+            "namespace": "oes-spin"
+          },
+          "spec": {
+            "backoffLimit": 1,
+            "template": {
+              "spec": {
+                "containers": [
+                  {
+                    "args": [
+                      "RESULT=$(sed -e '/^.*integration.*$/d' -e 's/\",/\"/g' -e 's/version/value/g' -e 's/results/options/' /tmp/versions.json ) && echo SPINNAKER_CONFIG_JSON=$RESULT "
+                    ],
+                    "command": [
+                      "/bin/bash",
+                      "-c"
+                    ],
+                    "image": "ubuntu",
+                    "name": "genjson",
+                    "volumeMounts": [
+                      {
+                        "mountPath": "/tmp",
+                        "name": "version-list"
+                      }
+                    ]
+                  }
+                ],
+                "restartPolicy": "Never",
+                "volumes": [
+                  {
+                    "configMap": {
+                      "name": "pipeline-configmap"
+                    },
+                    "name": "version-list"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "name": "Run Job (Manifest)",
+        "propertyFile": "genjson",
+        "refId": "13",
+        "requisiteStageRefIds": [
+          "12"
+        ],
+        "source": "text",
+        "type": "runJobManifest"
+      },
+      {
+        "failPipeline": true,
+        "judgmentInputs": "${options}",
+        "name": "Select Version",
+        "notifications": [],
+        "refId": "14",
+        "requisiteStageRefIds": [
+          "13"
+        ],
+        "type": "manualJudgment"
+      }
+    ],
+    "triggers": [
+      {
+        "enabled": true,
+        "expectedArtifactIds": [],
+        "payloadConstraints": {},
+        "source": "clarity-deploy",
+        "type": "webhook"
+      },
+      {
+        "branch": "main",
+        "enabled": true,
+        "project": "OpsMx",
+        "slug": "dexcom",
+        "source": "github",
+        "type": "git"
+      }
+    ],
+    "updateTs": "1611247768000"
+  }
